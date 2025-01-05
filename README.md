@@ -52,7 +52,7 @@ The chatbot is built using **Streamlit** for the user interface and **Ollama** f
 
 5. **Run the Application**:
    ```bash
-   streamlit run app.py
+   streamlit run appp.py
    ```
 
 6. **Access the Application**:
