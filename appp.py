@@ -436,6 +436,11 @@ def generate_candidate_report(candidate_info, questions, answers, score, chat_hi
 
     # Determine recommendation
     recommendation = "HIRE" if score_percentage >= 70 else "NO HIRE"
+    reason = (
+    "their strong technical proficiency and alignment with role requirements."
+    if recommendation == "HIRE"
+    else "gaps in technical proficiency or role alignment."
+)
 
     # Generate strengths and areas for improvement
     strengths = [
@@ -446,6 +451,23 @@ def generate_candidate_report(candidate_info, questions, answers, score, chat_hi
         "Needs to improve theoretical knowledge of frameworks like Django.",
         "Should practice explaining complex concepts in detail.",
     ]
+
+    # Generate summaries for evaluation criteria
+    technical_summary = (
+        "strong technical skills and a solid understanding of core concepts."
+        if technical_proficiency >= 7
+        else "some gaps in technical knowledge that need improvement."
+    )
+    answer_summary = (
+        "clear, accurate, and well-structured responses."
+        if answer_quality >= 7
+        else "some inaccuracies or lack of depth in responses."
+    )
+    role_summary = (
+        "a good fit for the role based on their technical skills and experience."
+        if role_fit >= 7
+        else "not fully aligned with the role requirements."
+    )
 
     # Generate the report
     report = f"""
@@ -461,9 +483,9 @@ def generate_candidate_report(candidate_info, questions, answers, score, chat_hi
 ---
 
 #### Evaluation Summary:
-- **Technical Proficiency**: {technical_proficiency:.1f}/10 - The candidate demonstrates [summary].
-- **Answer Quality**: {answer_quality:.1f}/10 - The candidate's answers were [summary].
-- **Role Fit**: {role_fit:.1f}/10 - The candidate is [summary] for the role.
+- **Technical Proficiency**: {technical_proficiency:.1f}/10 - The candidate demonstrates {technical_summary}
+- **Answer Quality**: {answer_quality:.1f}/10 - The candidate's answers were {answer_summary}
+- **Role Fit**: {role_fit:.1f}/10 - The candidate is {role_summary}
 - **Recommendation**: {recommendation}
 
 ---
@@ -472,15 +494,15 @@ def generate_candidate_report(candidate_info, questions, answers, score, chat_hi
 
 ##### 1. Technical Proficiency:
 - **Rating**: {technical_proficiency:.1f}/10
-- **Summary**: The candidate has [summary of technical skills based on experience and answers].
+- **Summary**: The candidate has {technical_summary}
 
 ##### 2. Answer Quality:
 - **Rating**: {answer_quality:.1f}/10
-- **Summary**: The candidate provided [summary of answer quality and depth].
+- **Summary**: The candidate provided {answer_summary}
 
 ##### 3. Role Fit:
 - **Rating**: {role_fit:.1f}/10
-- **Summary**: The candidate is [summary of role fit].
+- **Summary**: The candidate is {role_summary}
 
 ---
 
@@ -502,7 +524,9 @@ def generate_candidate_report(candidate_info, questions, answers, score, chat_hi
 ---
 
 #### Conclusion:
-Based on the assessment, the candidate is recommended for **[HIRE/NO HIRE]** due to [reason]. They should focus on [key areas for improvement] to enhance their technical proficiency and role fit.
+Based on the assessment, the candidate is recommended for **{recommendation}** due to {reason}. They should focus on the following areas to enhance their technical proficiency and role fit:
+- {areas_for_improvement[0]}
+- {areas_for_improvement[1]}
     """
     return report
 
