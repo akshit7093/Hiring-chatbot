@@ -1,6 +1,3 @@
-Here’s the **README.md** file code for your GitHub repository. This file provides a comprehensive overview of the project, installation instructions, usage guide, and details about experimental features like **CUDA support** and the **relevance checker agent**.
-
----
 
 ```markdown
 # Hiring Assistant Chatbot
