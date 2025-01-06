@@ -75,7 +75,7 @@ The experimental version of the chatbot includes **CUDA support** for GPU accele
    ```
 
 ### 2. Relevance Checker Agent
-The experimental version includes a **relevance checker agent** powered by **Llama 2**. This agent evaluates whether a candidate's answer is relevant to the question before sending it to the main evaluation agent. This ensures that only relevant answers are evaluated, improving the accuracy of the feedback.
+The experimental version includes a **relevance checker agent** powered by **llama3.1**. This agent evaluates whether a candidate's answer is relevant to the question before sending it to the main evaluation agent. This ensures that only relevant answers are evaluated, improving the accuracy of the feedback.
 
 #### Steps to Use the Relevance Checker Agent
 1. Ensure you have the experimental version of the app (`appp_copy.py`).
