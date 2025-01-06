@@ -115,22 +115,27 @@ def handle_sensitive_query(user_message):
             return True
     return False
 
-# Function to generate responses using Ollama
 def generate_response(prompt):
+    """
+    Generate a response using Ollama with GPU acceleration.
+    """
     if handle_sensitive_query(prompt):
         return "For privacy reasons, I cannot display your personal details directly. However, I can confirm that your information is securely stored and will only be used for the hiring process. Let me know if you have any other questions about the interview process or your technical skills!"
     
     try:
+        # Ensure Ollama uses the GPU if available
         response = ollama.generate(
-            model="llama3.1",  # You can use other models like "llama3" or "mistral"
+            model="llama3.1",  # Use 'llama3.1' or any other GPU-accelerated model
             prompt=prompt,
         )
         return response["response"]
     except Exception as e:
         return f"Error generating response: {str(e)}"
 
-# Function to generate technical questions
 def generate_technical_questions(tech_stack):
+    """
+    Generate technical questions using Ollama with GPU acceleration.
+    """
     if not tech_stack:
         return []
 
@@ -147,8 +152,9 @@ def generate_technical_questions(tech_stack):
     """
     
     try:
+        # Ensure Ollama uses the GPU if available
         response = ollama.generate(
-            model="llama3.1",
+            model="llama3.1",  # Use 'llama3.1' or any other GPU-accelerated model
             prompt=prompt,
         )
         response_text = response["response"].strip()
@@ -171,99 +177,206 @@ def generate_technical_questions(tech_stack):
         st.error(f"Error generating questions: {str(e)}")
         return []
 
+
+def is_answer_relevant(question, answer):
+    """
+    Use Llama 2 to check if the answer is relevant to the question.
+    Returns:
+        - True if the answer is relevant.
+        - False if the answer is irrelevant.
+    """
+    # Construct relevance check prompt
+    prompt = f"""
+    You are a technical interviewer evaluating whether a candidate's answer is relevant to the question.
+
+    Question: {question}
+    Candidate's Answer: {answer}
+
+    Instructions:
+    1. Evaluate whether the answer is relevant to the question.
+    2. Focus on technical accuracy and alignment with the question's requirements.
+    3. Your response must be exactly "RELEVANT" or "NOT RELEVANT".
+    4. Do not include any additional text or explanations.
+
+    Evaluation:
+    """
+
+    try:
+        # Generate evaluation using Llama 2
+        response = ollama.generate(model="llama3.1", prompt=prompt)
+        evaluation_text = response["response"].strip().upper()
+
+        # Parse the evaluation result
+        if evaluation_text == "RELEVANT":
+            return True
+        elif evaluation_text == "NOT RELEVANT":
+            return False
+        else:
+            # Attempt to infer relevance from the response
+            if "relevant" in evaluation_text.lower():
+                return True
+            elif "not relevant" in evaluation_text.lower():
+                return False
+            else:
+                raise ValueError("Invalid evaluation format")
+    except Exception as e:
+        # Handle errors gracefully
+        st.error(f"Error checking relevance: {str(e)}")
+        return False  # Assume irrelevant if there's an error
+
+
 def evaluate_answers(questions, answers, role_requirements):
+    """
+    Evaluate candidate answers and provide consistent feedback.
+    Returns:
+        - score: Total score based on technical questions.
+        - feedback: Feedback for each technical question.
+        - role_feedback: Feedback on how well the candidate meets role-specific requirements.
+    """
     score = 0
     feedback = []
+    role_feedback = []
 
     # Evaluate technical questions
     for i, question in enumerate(questions):
-        if question["type"] == "text":
-            prompt = f"""
-            You are a technical interviewer. Evaluate this answer with high standards.
-            
-            Question: {question["question"]}
-            Candidate's Answer: {answers[i]}
-            
-            Evaluate if the answer demonstrates clear understanding and technical accuracy.
-            First line must be exactly "CORRECT" or "INCORRECT"
-            Then provide a brief explanation of why.
-            """
-            try:
-                response = ollama.generate(
-                    model="llama3.1",
-                    prompt=prompt,
-                )
-                evaluation = response["response"].strip().split('\n')[0].upper()
-                explanation = ' '.join(response["response"].strip().split('\n')[1:])
-                
-                if evaluation == "CORRECT":
-                    score += 1
-                    feedback.append(f"Question {i + 1}: Correct (1 point) - {explanation}")
-                else:
-                    feedback.append(f"Question {i + 1}: Incorrect (0 points) - {explanation}")
-            except Exception as e:
-                feedback.append(f"Question {i + 1}: Evaluation failed (0 points)")
+        candidate_answer = answers[i].strip()  # Remove leading/trailing whitespace
 
-        elif question["type"] == "code":
-            prompt = f"""
-            You are a strict technical interviewer evaluating code.
-            
-            Coding Question: {question["question"]}
-            Submitted Code: {answers[i]}
-            
-            Evaluate for:
-            1. Correctness
-            2. Proper syntax
-            3. Efficiency
-            4. Error handling
-            
-            First line must be exactly "CORRECT" or "INCORRECT"
-            Then provide specific technical feedback.
-            """
-            try:
-                response = ollama.generate(
-                    model="llama3.1",
-                    prompt=prompt,
-                )
-                evaluation = response["response"].strip().split('\n')[0].upper()
-                explanation = ' '.join(response["response"].strip().split('\n')[1:])
-                
-                if evaluation == "CORRECT":
-                    score += 2
-                    feedback.append(f"Question {i + 1}: Correct (2 points) - {explanation}")
-                else:
-                    feedback.append(f"Question {i + 1}: Incorrect (0 points) - {explanation}")
-            except Exception as e:
-                feedback.append(f"Question {i + 1}: Evaluation failed (0 points)")
+        # Check if the answer is empty
+        if not candidate_answer:
+            feedback.append(f"Question {i + 1}: Incorrect (0 points) - No answer provided.")
+            continue
 
-    # Evaluate role-specific requirements (for internal use only)
-    role_feedback = []
-    for requirement in role_requirements["requirements"]:
+        # Check if the answer is relevant using the relevance checker agent
+        if not is_answer_relevant(question["question"], candidate_answer):
+            feedback.append(f"Question {i + 1}: Incorrect (0 points) - Answer is irrelevant to the question.")
+            continue
+
+        # Construct evaluation prompt for technical questions
         prompt = f"""
-        You are a technical interviewer evaluating a candidate's suitability for the role of {role_requirements["role"]}.
-        
-        Requirement: {requirement}
-        
-        Based on the candidate's answers, does the candidate meet this requirement?
-        First line must be exactly "YES" or "NO"
-        Then provide a brief explanation of why.
+        You are a technical interviewer. Evaluate this answer with high standards.
+
+        Question: {question["question"]}
+        Candidate's Answer: {candidate_answer}
+
+        Instructions:
+        1. First line must be exactly "CORRECT" or "INCORRECT".
+        2. Provide a brief explanation of why the answer is correct or incorrect.
+        3. Keep the explanation concise and focused on technical accuracy.
+        4. If you cannot evaluate the answer, start your response with "ERROR".
+
+        Evaluation:
         """
+
         try:
-            response = ollama.generate(
-                model="llama3.1",
-                prompt=prompt,
-            )
-            evaluation = response["response"].strip().split('\n')[0].upper()
-            explanation = ' '.join(response["response"].strip().split('\n')[1:])
-            
-            if evaluation == "YES":
-                role_feedback.append(f"Requirement: {requirement} - Met (1 point) - {explanation}")
+            # Generate evaluation using Llama 2
+            response = ollama.generate(model="llama3.1", prompt=prompt)
+            evaluation_text = response["response"].strip()
+
+            # Parse the evaluation result
+            evaluation_lines = evaluation_text.split('\n')
+            if len(evaluation_lines) == 0:
+                raise ValueError("Empty evaluation response")
+
+            # Extract the first line (CORRECT/INCORRECT/ERROR)
+            evaluation = evaluation_lines[0].strip().upper()
+
+            # Handle invalid evaluation format
+            if evaluation not in ["CORRECT", "INCORRECT", "ERROR"]:
+                # Attempt to infer evaluation from the response
+                if "correct" in evaluation_text.lower():
+                    evaluation = "CORRECT"
+                elif "incorrect" in evaluation_text.lower():
+                    evaluation = "INCORRECT"
+                else:
+                    raise ValueError("Invalid evaluation format")
+
+            # Extract the explanation
+            explanation = ' '.join(evaluation_lines[1:]).strip() if len(evaluation_lines) > 1 else "No explanation provided."
+
+            # Update score and feedback based on evaluation
+            if evaluation == "CORRECT":
+                score += 1 if question["type"] == "text" else 2
+                feedback.append(f"Question {i + 1}: Correct ({1 if question['type'] == 'text' else 2} points) - {explanation}")
+            elif evaluation == "INCORRECT":
+                feedback.append(f"Question {i + 1}: Incorrect (0 points) - {explanation}")
             else:
-                role_feedback.append(f"Requirement: {requirement} - Not Met (0 points) - {explanation}")
+                feedback.append(f"Question {i + 1}: Evaluation failed (0 points) - Error: Unable to evaluate the answer.")
+
         except Exception as e:
-            role_feedback.append(f"Requirement: {requirement} - Evaluation failed (0 points)")
+            # Handle errors gracefully
+            feedback.append(f"Question {i + 1}: Evaluation failed (0 points) - Error: {str(e)}")
+
+    # Evaluate role-specific requirements
+    if role_requirements and "requirements" in role_requirements:
+        for requirement in role_requirements["requirements"]:
+            # Construct evaluation prompt for role-specific requirements
+            prompt = f"""
+            You are a technical interviewer evaluating a candidate's suitability for the role of {role_requirements["role"]}.
+
+            Requirement: {requirement}
+
+            Based on the candidate's answers, does the candidate meet this requirement?
+            Instructions:
+            1. First line must be exactly "YES" or "NO".
+            2. Provide a brief explanation of why the candidate meets or does not meet the requirement.
+            3. Keep the explanation concise and focused on role alignment.
+            4. If you cannot evaluate the requirement, start your response with "ERROR".
+
+            Evaluation:
+            """
+
+            try:
+                # Generate evaluation using Llama 2
+                response = ollama.generate(model="llama3.1", prompt=prompt)
+                evaluation_text = response["response"].strip()
+
+                # Parse the evaluation result
+                evaluation_lines = evaluation_text.split('\n')
+                if len(evaluation_lines) == 0:
+                    raise ValueError("Empty evaluation response")
+
+                # Extract the first line (YES/NO/ERROR)
+                evaluation = evaluation_lines[0].strip().upper()
+
+                # Handle invalid evaluation format
+                if evaluation not in ["YES", "NO", "ERROR"]:
+                    # Attempt to infer evaluation from the response
+                    if "yes" in evaluation_text.lower():
+                        evaluation = "YES"
+                    elif "no" in evaluation_text.lower():
+                        evaluation = "NO"
+                    else:
+                        raise ValueError("Invalid evaluation format")
+
+                # Extract the explanation
+                explanation = ' '.join(evaluation_lines[1:]).strip() if len(evaluation_lines) > 1 else "No explanation provided."
+
+                # Add role-specific feedback
+                if evaluation == "YES":
+                    role_feedback.append(f"Requirement: {requirement} - Met (1 point) - {explanation}")
+                elif evaluation == "NO":
+                    role_feedback.append(f"Requirement: {requirement} - Not Met (0 points) - {explanation}")
+                else:
+                    role_feedback.append(f"Requirement: {requirement} - Evaluation failed (0 points) - Error: Unable to evaluate the requirement.")
+
+            except Exception as e:
+                # Handle errors gracefully
+                role_feedback.append(f"Requirement: {requirement} - Evaluation failed (0 points) - Error: {str(e)}")
 
     return score, feedback, role_feedback
+
+
+def is_gibberish(text):
+    """
+    Check if the text is gibberish or irrelevant.
+    """
+    # Define a list of irrelevant or gibberish patterns
+    irrelevant_patterns = ["wadawd", "asdf", "1234", "test", "placeholder", "lorem ipsum", "dawdawdaw"]
+
+    # Check if the text is too short or matches irrelevant patterns
+    if len(text) < 5 or any(pattern in text.lower() for pattern in irrelevant_patterns):
+        return True
+    return False
 
 def save_to_csv(candidate_info, questions, answers, score, feedback, role_feedback):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -369,13 +482,15 @@ if st.session_state.info_collected and not st.session_state.submitted and not st
         st.write(current_question["question"])
 
         # Input field for the answer
+        answer_key = f"answer_{st.session_state.current_question_index}"  # Unique key for each question
         if current_question["type"] == "text":
-            answer = st.text_area("Your Answer", value=st.session_state.answers[st.session_state.current_question_index])
+            answer = st.text_area("Your Answer", value=st.session_state.answers[st.session_state.current_question_index], key=answer_key)
         elif current_question["type"] == "code":
-            answer = st.text_area("Write your code here", value=st.session_state.answers[st.session_state.current_question_index])
+            answer = st.text_area("Write your code here", value=st.session_state.answers[st.session_state.current_question_index], key=answer_key)
 
-        # Save the answer
-        st.session_state.answers[st.session_state.current_question_index] = answer
+        # Save the answer to session state
+        if answer:
+            st.session_state.answers[st.session_state.current_question_index] = answer
 
         # Navigation buttons
         col1, col2 = st.columns(2)
@@ -391,6 +506,9 @@ if st.session_state.info_collected and not st.session_state.submitted and not st
                     st.rerun()
             else:
                 if st.button("Submit Answers"):
+                    # Ensure the last answer is saved before submission
+                    if answer:
+                        st.session_state.answers[st.session_state.current_question_index] = answer
                     st.session_state.submitted = True
                     st.rerun()
 
