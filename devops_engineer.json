@@ -1,0 +1,9 @@
+{
+    "role": "DevOps Engineer",
+    "requirements": [
+      "Mastery of cloud platforms (AWS, GCP, or Azure)",
+      "Experience with containerization and orchestration (Docker, Kubernetes)",
+      "Strong scripting skills (Python, Bash, Shell)",
+      "Expertise in CI/CD pipelines and Infrastructure as Code"
+    ]
+}
